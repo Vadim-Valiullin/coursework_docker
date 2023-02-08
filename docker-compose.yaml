@@ -1,0 +1,77 @@
+version: '3.8'
+
+volumes:
+  postgres_data:
+  app:
+  celery:
+  celery-beat:
+
+networks:
+  main:
+
+services:
+  postgres:
+    image: postgres:14.6-alpine
+    ports:
+      - "5433:5432"
+    env_file:
+      - ./.env
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    networks:
+      - main
+
+
+  redis:
+    image: redis
+    ports:
+      - '6379:6379'
+    restart: always
+    networks:
+      - main
+
+  app:
+    build: .
+    volumes:
+      - ./:/app
+    restart: always
+    env_file:
+      - ./.env
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    ports:
+      - '8000:8000'
+    depends_on:
+      - postgres
+    networks:
+      - main
+
+  celery:
+    build: .
+    restart: always
+    command: celery -A Skyenkins_django worker -l info
+    volumes:
+      - ./:/app
+    env_file:
+      - ./.env
+    depends_on:
+      - postgres
+      - app
+      - redis
+    networks:
+      - main
+
+  celery-beat:
+    restart: always
+    build: .
+    command: celery -A Skyenkins_django beat -l info
+    volumes:
+      - ./:/app
+    env_file:
+      - ./.env
+    depends_on:
+      - postgres
+      - app
+      - redis
+      - celery
+    networks:
+      - main
